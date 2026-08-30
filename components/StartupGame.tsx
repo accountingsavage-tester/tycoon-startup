@@ -19,7 +19,6 @@ export default function StartupGame(){
    constructor(){super("Town")}
    create(){const w=1280,h=760;this.physics.world.setBounds(0,0,w,h);
     makeTexture(this,"player",g=>{g.fillStyle(0x385f78).fillRoundedRect(9,22,30,38,8);g.fillStyle(0xc98e68).fillCircle(24,13,12);g.fillStyle(0x202a2d).fillRect(13,1,22,6)});
-    makeTexture(this,"npc",g=>{g.fillStyle(0x52758b).fillRoundedRect(8,22,32,38,8);g.fillStyle(0xc98e68).fillCircle(24,13,12);g.fillStyle(0x303536).fillRect(12,1,24,7)});
     this.add.rectangle(w/2,h*.2,w,h*.4,0xa6d8e8);this.add.circle(1080,90,46,0xffdf86);
     for(let i=0;i<15;i++){const x=35+i*88,bh=80+((i*41)%130);this.add.rectangle(x,390-bh/2,62,bh,0x60767b);for(let j=0;j<3;j++)this.add.rectangle(x-18+j*18,370-bh/2,8,10,0xe9d37d)}
     this.add.rectangle(w/2,605,w,310,0x475250);this.add.rectangle(w/2,605,w,7,0x718079);for(let x=25;x<w;x+=90)this.add.rectangle(x,605,48,5,0xe4d07a);
@@ -45,7 +44,7 @@ export default function StartupGame(){
     const stock=this.add.text(720,640,"BUY 10 COFFEES  •  ₱180",{fontFamily:"Arial",fontSize:"13px",fontStyle:"bold",color:"#17200f",backgroundColor:"#d9f56a",padding:{x:14,y:11}}).setInteractive({useHandCursor:true});stock.on("pointerdown",()=>this.buy());
     const open=this.add.text(1010,75,state.stock?"OPEN BUSINESS":"BUY STOCK FIRST",{fontFamily:"Arial",fontSize:"13px",fontStyle:"bold",color:"#17200f",backgroundColor:"#d9f56a",padding:{x:12,y:9}}).setInteractive({useHandCursor:true});open.on("pointerdown",()=>this.openBusiness(open));
     this.add.text(140,710,"ESC  •  RETURN TO TOWN",{fontFamily:"Arial",fontSize:"11px",color:"#c8bda7"}).setInteractive().on("pointerdown",()=>this.leave());this.input.keyboard!.on("keydown-ESC",()=>this.leave());
-    this.input.on("drag",(_:any,obj:Phaser.GameObjects.GameObject,x:number,y:number)=>{(obj as Phaser.GameObjects.Rectangle).x=x;(obj as Phaser.GameObjects.Rectangle).y=y});
+    this.input.on("drag",(_:Phaser.Input.Pointer,obj:Phaser.GameObjects.GameObject,x:number,y:number)=>{const item=obj as Phaser.GameObjects.Rectangle;item.x=x;item.y=y});
    }
    buy(){if(state.cash<180){this.status.setText("Not enough cash.");return}state.cash-=180;state.stock+=10;this.status.setText(`STOCK ${state.stock}  •  Inventory delivered`);save()}
    openBusiness(btn:Phaser.GameObjects.Text){if(!state.stock){this.status.setText("Buy inventory before opening.");return}if(this.opened)return;this.opened=true;btn.setText("BUSINESS OPEN");this.status.setText("Customers are entering. Click one when they reach the counter.");for(let i=0;i<5;i++)this.time.delayedCall(i*900,()=>this.spawnCustomer());this.customerTimer=this.time.addEvent({delay:4500,callback:()=>this.spawnCustomer(),loop:true})}
@@ -53,7 +52,7 @@ export default function StartupGame(){
    serve(c:Phaser.GameObjects.Container){if(!state.stock){this.status.setText("SOLD OUT  •  buy more stock");return}state.stock--;state.cash+=35;state.sales+=35;state.reputation=Math.min(100,state.reputation+1);this.status.setText(`SALE +₱35  •  Cash ₱${state.cash.toLocaleString()}  •  Stock ${state.stock}`);this.tweens.add({targets:c,x:1120,y:550,duration:900,onComplete:()=>c.destroy()});save()}
    leave(){this.customerTimer?.remove(false);this.scene.stop();this.scene.resume("Town")}
   }
-  game=new Phaser.Game({type:Phaser.AUTO,width:1280,height:760,parent:mount.current,backgroundColor:"#142019",scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},physics:{default:"arcade",arcade:{debug:false}},scene:[Town,Shop],render:{antialias:true}});
+  const game = new Phaser.Game({type:Phaser.AUTO,width:1280,height:760,parent:mount.current,backgroundColor:"#142019",scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},physics:{default:"arcade",arcade:{debug:false}},scene:[Town,Shop],render:{antialias:true}});
   return()=>game.destroy(true);
  },[]);
  return <div className={styles.wrap}><div ref={mount} className={styles.canvas}/><div className={styles.mobileHint}>Tap the ground to move. Tap the café to enter. Use WASD or arrow keys on desktop.</div></div>;
