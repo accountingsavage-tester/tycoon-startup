@@ -3,36 +3,62 @@ import {useEffect,useRef} from "react";
 import Phaser from "phaser";
 import styles from "./StartupGame.module.css";
 
+type GameData={cash:number;stock:number;day:number;sales:number;reputation:number};
+const SAVE="startup-tycoon-save";
+
 export default function StartupGame(){
  const mount=useRef<HTMLDivElement>(null);
  useEffect(()=>{
   if(!mount.current)return;
-  class CityScene extends Phaser.Scene{
-   player!:Phaser.GameObjects.Rectangle; customers:Phaser.GameObjects.Container[]=[]; money=10000; day=1; stock=0; selected=false; info!:Phaser.GameObjects.Text; cashText!:Phaser.GameObjects.Text; tutorial!:Phaser.GameObjects.Text;
-   constructor(){super("city")}
-   create(){
-    this.cameras.main.setBackgroundColor("#8fc9df");
-    this.add.rectangle(640,120,1280,240,0x9fd5e5); this.add.circle(1080,90,48,0xffdf83);
-    for(let i=0;i<12;i++){const h=90+Math.random()*150;this.add.rectangle(55+i*105,290-h/2,75,h,0x61777b).setOrigin(.5);for(let y=0;y<3;y++)this.add.rectangle(30+i*105,y*25+210-h/2,8,10,0xf0d879)}
-    this.add.rectangle(640,510,1280,250,0x46504e);for(let x=0;x<1280;x+=90)this.add.rectangle(x,510,48,5,0xe4d07b);
-    this.add.text(40,30,"STARTUP TYCOON",{fontFamily:"Arial",fontSize:"22px",fontStyle:"bold",color:"#ffffff"});
-    this.cashText=this.add.text(40,62,"₱10,000",{fontFamily:"Arial",fontSize:"20px",fontStyle:"bold",color:"#d9f56a"});
-    this.add.text(1090,35,`DAY ${this.day}`,{fontFamily:"Arial",fontSize:"16px",fontStyle:"bold",color:"#ffffff"});
-    this.add.text(500,245,"YOUR TOWN",{fontFamily:"Arial",fontSize:"14px",color:"#ffffff"});
-    const shop=this.add.container(640,430);shop.add(this.add.rectangle(0,0,250,170,0xb87950));shop.add(this.add.rectangle(0,-52,210,42,0x26352e));shop.add(this.add.text(0,-52,"CORNER CAFÉ",{fontFamily:"Arial",fontSize:"16px",fontStyle:"bold",color:"#f3e7bd"}).setOrigin(.5));shop.add(this.add.rectangle(-65,10,70,60,0x7faeb8));shop.add(this.add.rectangle(65,10,70,60,0x7faeb8));shop.add(this.add.rectangle(0,40,46,70,0x563e34));shop.setSize(250,170);shop.setInteractive();shop.on("pointerdown",()=>this.enterShop());
-    this.player=this.add.rectangle(640,600,22,34,0x385f78);this.player.setDepth(3);
-    this.info=this.add.text(40,700,"WASD / ARROWS to walk  •  Click your shop to enter",{fontFamily:"Arial",fontSize:"15px",color:"#ffffff"});
-    this.tutorial=this.add.text(640,650,"TUTORIAL 01  •  Walk to your shop and click it",{fontFamily:"Arial",fontSize:"16px",fontStyle:"bold",color:"#18231c",backgroundColor:"#d9f56a",padding:{left:14,right:14,top:10,bottom:10}}).setOrigin(.5);
-    this.input.keyboard?.on("keydown",()=>this.move());
+  const saved:GameData=(()=>{try{return JSON.parse(localStorage.getItem(SAVE)||"")}catch{return {cash:10000,stock:0,day:1,sales:0,reputation:10}}})();
+  const state:GameData={cash:saved.cash??10000,stock:saved.stock??0,day:saved.day??1,sales:saved.sales??0,reputation:saved.reputation??10};
+  let game:Phaser.Game;
+  class Town extends Phaser.Scene{
+   player!:Phaser.Physics.Arcade.Sprite; keys!:Phaser.Types.Input.Keyboard.CursorKeys; wasd!:Record<string,Phaser.Input.Keyboard.Key>; hud!:Phaser.GameObjects.Text; objective!:Phaser.GameObjects.Text; shop!:Phaser.GameObjects.Rectangle; open=false; customers:Phaser.GameObjects.Container[]=[];
+   constructor(){super("Town")}
+   create(){const w=1280,h=760;this.physics.world.setBounds(0,0,w,h);
+    this.add.rectangle(w/2,h*.22,w,h*.44,0x9fd4e5);this.add.circle(1080,90,46,0xffdf86);
+    for(let i=0;i<16;i++){const x=30+i*82, bh=70+((i*37)%130);this.add.rectangle(x,370-bh/2,58,bh,0x61757a);for(let j=0;j<3;j++)this.add.rectangle(x-18+j*18,350-bh/2,7,9,0xe9d37d)}
+    this.add.rectangle(w/2,600,w,320,0x46514f);this.add.rectangle(w/2,600,w,7,0x71807a);for(let x=20;x<w;x+=90)this.add.rectangle(x,600,48,5,0xe5d17b);
+    for(let i=0;i<11;i++){const t=this.add.circle(40+i*120,470-(i%2)*25,22,0x356342);this.add.rectangle(t.x,495-(i%2)*25,7,25,0x6b4d36)}
+    this.shop=this.add.rectangle(640,445,280,190,0xb97850).setStrokeStyle(6,0x4e3b32).setInteractive({useHandCursor:true});
+    this.add.rectangle(640,382,230,45,0x28362f);this.add.text(640,382,"CORNER CAFÉ",{fontFamily:"Arial",fontSize:"18px",fontStyle:"bold",color:"#f2e6c2"}).setOrigin(.5);
+    this.add.rectangle(580,455,80,68,0x83b4be).setStrokeStyle(5,0x654637);this.add.rectangle(700,455,80,68,0x83b4be).setStrokeStyle(5,0x654637);this.add.rectangle(640,520,55,85,0x543d34);
+    this.shop.on("pointerdown",()=>this.enterShop());
+    this.player=this.physics.add.sprite(250,620,"player").setScale(.8);this.player.setCollideWorldBounds(true);
+    this.keys=this.input.keyboard!.createCursorKeys();this.wasd={W:this.input.keyboard!.addKey("W"),A:this.input.keyboard!.addKey("A"),S:this.input.keyboard!.addKey("S"),D:this.input.keyboard!.addKey("D")};
+    this.hud=this.add.text(24,22,`₱${state.cash.toLocaleString()}   •   DAY ${state.day}   •   STOCK ${state.stock}`, {fontFamily:"Arial",fontSize:"17px",fontStyle:"bold",color:"#fff",backgroundColor:"#17221ccc",padding:{x:13,y:10}}).setDepth(10);
+    this.objective=this.add.text(640,710,"TUTORIAL 01  •  Walk to the café and enter it",{fontFamily:"Arial",fontSize:"15px",fontStyle:"bold",color:"#18221b",backgroundColor:"#d9f56a",padding:{x:14,y:9}}).setOrigin(.5).setDepth(10);
+    this.input.on("pointerdown",(p:Phaser.Input.Pointer)=>{if(p.y>540)this.movePlayer(p.x,p.y)});
    }
-   move(){const k=this.input.keyboard;if(!k)return;const speed=8;if(k.addKey("LEFT").isDown||k.addKey("A").isDown)this.player.x-=speed;if(k.addKey("RIGHT").isDown||k.addKey("D").isDown)this.player.x+=speed;if(k.addKey("UP").isDown||k.addKey("W").isDown)this.player.y-=speed;if(k.addKey("DOWN").isDown||k.addKey("S").isDown)this.player.y+=speed;this.player.x=Phaser.Math.Clamp(this.player.x,20,1260);this.player.y=Phaser.Math.Clamp(this.player.y,330,690)}
-   enterShop(){this.scene.pause();this.scene.launch("shop",{parent:this});}
-   spend(n:number){this.money-=n;this.cashText.setText(`₱${this.money.toLocaleString()}`)}
-   addCustomer(){const c=this.add.container(Phaser.Math.Between(80,1200),400);c.add(this.add.circle(0,-15,9,0xc98e68));c.add(this.add.rectangle(0,8,20,30,Phaser.Math.Between(0x476d83,0x8c5361)));this.customers.push(c);this.tweens.add({targets:c,x:640,y:430,duration:Phaser.Math.Between(2500,4500),onComplete:()=>{if(this.stock>0){this.stock--;this.money+=35;this.cashText.setText(`₱${this.money.toLocaleString()}`)}this.tweens.add({targets:c,x:c.x+Phaser.Math.Between(-300,300),duration:1800,onComplete:()=>c.destroy()})}})}
+   movePlayer(x:number,y:number){this.physics.moveTo(this.player,x,y,210);this.time.delayedCall(Phaser.Math.Clamp(this.physics.moveToDistance(this.player,x,y)/210*1000,250,3500),()=>this.player.setVelocity(0))}
+   enterShop(){this.scene.pause();this.scene.launch("Shop");}
+   update(){let x=0,y=0;if(this.keys.left.isDown||this.wasd.A.isDown)x--;if(this.keys.right.isDown||this.wasd.D.isDown)x++;if(this.keys.up.isDown||this.wasd.W.isDown)y--;if(this.keys.down.isDown||this.wasd.S.isDown)y++;this.player.setVelocity(x*190,y*190);}
   }
-  class ShopScene extends Phaser.Scene{parent!:CityScene;status!:Phaser.GameObjects.Text;create(data:any){this.parent=data.parent;this.cameras.main.setBackgroundColor("#1b261f");this.add.text(50,35,"CORNER CAFÉ",{fontFamily:"Arial",fontSize:"28px",fontStyle:"bold",color:"#fff"});this.add.text(50,75,"STORE INTERIOR  •  BUILD MODE",{fontFamily:"Arial",fontSize:"12px",color:"#a8b4a9"});this.add.rectangle(640,400,900,500,0xb47a55);this.add.rectangle(640,650,900,18,0x704b39);this.add.rectangle(500,390,130,60,0x604333);this.add.rectangle(500,350,100,20,0xd8a56e);this.add.text(450,300,"SHELF",{fontFamily:"Arial",fontSize:"12px",color:"#fff"});const counter=this.add.rectangle(800,500,180,70,0x593f34).setInteractive({draggable:true});this.input.setDraggable(counter);this.add.text(735,545,"DRAG ME",{fontFamily:"Arial",fontSize:"11px",color:"#d9f56a"});this.status=this.add.text(50,690,"Inventory: 0  •  Click STOCK to buy supplies",{fontFamily:"Arial",fontSize:"14px",color:"#fff"});const stock=this.add.text(900,690,"STOCK 10  •  ₱180",{fontFamily:"Arial",fontSize:"15px",fontStyle:"bold",color:"#17200f",backgroundColor:"#d9f56a",padding:{left:12,right:12,top:10,bottom:10}}).setInteractive();stock.on("pointerdown",()=>{if(this.parent.money>=180){this.parent.spend(180);this.parent.stock+=10;this.status.setText(`Inventory: ${this.parent.stock}  •  Ready for customers`)}else this.status.setText("Not enough cash")});const open=this.add.text(1040,50,"OPEN STORE",{fontFamily:"Arial",fontSize:"13px",fontStyle:"bold",color:"#17200f",backgroundColor:"#d9f56a",padding:{left:12,right:12,top:9,bottom:9}}).setInteractive();open.on("pointerdown",()=>{this.scene.stop();this.parent.scene.resume();this.parent.tutorial.setText("CUSTOMER FLOW  •  Customers now walk to your store");for(let i=0;i<4;i++)this.time.delayedCall(i*900,()=>this.parent.addCustomer())});const back=this.add.text(50,735,"← Back to town",{fontFamily:"Arial",fontSize:"13px",color:"#a8b4a9"}).setInteractive();back.on("pointerdown",()=>{this.scene.stop();this.parent.scene.resume()});this.input.on("drag",(_:any,g:Phaser.GameObjects.GameObject,x:number,y:number)=>{(g as any).x=x;(g as any).y=y})}}
-  const config:Phaser.Types.Core.GameConfig={type:Phaser.AUTO,width:1280,height:760,parent:mount.current,backgroundColor:"#142019",scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},scene:[CityScene,ShopScene],render:{antialias:true}};
-  const game=new Phaser.Game(config);return()=>game.destroy(true);
+  class Shop extends Phaser.Scene{
+   status!:Phaser.GameObjects.Text;customer?:Phaser.GameObjects.Container;served=false;counter!:Phaser.GameObjects.Rectangle;
+   constructor(){super("Shop")}
+   create(){const w=1280,h=760;this.add.rectangle(w/2,h/2,w,h,0x1a241e);this.add.rectangle(w/2,h/2,1000,580,0xc9a477).setStrokeStyle(12,0x5b4032);this.add.rectangle(w/2,145,1000,80,0x6a4938);
+    this.add.text(140,118,"CORNER CAFÉ",{fontFamily:"Arial",fontSize:"27px",fontStyle:"bold",color:"#f6ead0"});this.add.text(140,156,"DAY "+state.day+"  •  STORE INTERIOR",{fontFamily:"Arial",fontSize:"12px",color:"#cdbfa3"});
+    this.add.text(170,205,"STORAGE",{fontFamily:"Arial",fontSize:"12px",fontStyle:"bold",color:"#513b30});for(let i=0;i<4;i++){this.add.rectangle(220+i*105,270,85,48,0x765746);this.add.text(220+i*105,270,"SHELF",{fontSize:"9px",color:"#e8d5b3"}).setOrigin(.5)}
+    this.counter=this.add.rectangle(820,460,210,75,0x5a4034).setInteractive({draggable:true});this.input.setDraggable(this.counter);this.add.text(820,460,"DRAG COUNTER",{fontFamily:"Arial",fontSize:"12px",fontStyle:"bold",color:"#d9f56a"}).setOrigin(.5);
+    this.status=this.add.text(140,665,`Cash ₱${state.cash.toLocaleString()}   •   Stock ${state.stock}`,{fontFamily:"Arial",fontSize:"15px",fontStyle:"bold",color:"#fff"});
+    const stock=this.add.text(720,650,"BUY 10 COFFEES  •  ₱180",{fontFamily:"Arial",fontSize:"13px",fontStyle:"bold",color:"#17200f",backgroundColor:"#d9f56a",padding:{x:14,y:11}}).setInteractive({useHandCursor:true});stock.on("pointerdown",()=>this.buy());
+    const open=this.add.text(1010,75,"OPEN BUSINESS",{fontFamily:"Arial",fontSize:"13px",fontStyle:"bold",color:"#17200f",backgroundColor:"#d9f56a",padding:{x:12,y:9}}).setInteractive({useHandCursor:true});open.on("pointerdown",()=>this.openBusiness(open));
+    const back=this.add.text(140,720,"ESC  •  RETURN TO TOWN",{fontFamily:"Arial",fontSize:"11px",color:"#c8bda7"}).setInteractive();back.on("pointerdown",()=>this.leave());this.input.keyboard!.on("keydown-ESC",()=>this.leave());
+    this.input.on("drag",(_:any,obj:Phaser.GameObjects.GameObject,x:number,y:number)=>{(obj as Phaser.GameObjects.Rectangle).x=x;(obj as Phaser.GameObjects.Rectangle).y=y});
+   }
+   buy(){if(state.cash<180){this.status.setText("Not enough cash.");return}state.cash-=180;state.stock+=10;this.status.setText(`Cash ₱${state.cash.toLocaleString()}   •   Stock ${state.stock}   •   Inventory delivered`);save()}
+   openBusiness(btn:Phaser.GameObjects.Text){if(state.stock<=0){this.status.setText("Buy inventory before opening the business.");return}if(this.served)return;btn.setText("BUSINESS OPEN");this.served=true;this.status.setText("Customers are entering. Click a customer to serve them.");for(let i=0;i<4;i++)this.time.delayedCall(i*1000,()=>this.spawnCustomer())}
+   spawnCustomer(){const c=this.add.container(270,550).setSize(40,70).setInteractive({useHandCursor:true});c.add(this.add.circle(0,-25,13,0xc98e68));c.add(this.add.rectangle(0,10,28,45,[0x557b96,0xb66b59,0x6c8a63,0x78639c][this.customersIndex()]));this.tweens.add({targets:c,x:820,y:500,duration:1800,ease:"Sine.easeInOut",onComplete:()=>{this.status.setText("Customer waiting • click them to serve");}});c.on("pointerdown",()=>this.serve(c))}
+   customersIndex(){return Math.floor(Math.random()*4)}
+   serve(c:Phaser.GameObjects.Container){if(!state.stock)return this.status.setText("Sold out. Buy more stock.");state.stock--;state.cash+=35;state.sales+=35;state.reputation=Math.min(100,state.reputation+1);this.status.setText(`SALE +₱35   •   Cash ₱${state.cash.toLocaleString()}   •   Stock ${state.stock}`);this.tweens.add({targets:c,x:1100,y:550,duration:1000,onComplete:()=>c.destroy()});save()}
+   leave(){this.scene.stop();this.scene.resume("Town")}
+  }
+  function save(){localStorage.setItem(SAVE,JSON.stringify(state));}
+  const g=this.make.graphics({x:0,y:0,add:false});g.fillStyle(0x4d7188).fillRoundedRect(0,0,32,48,8);g.fillStyle(0xc98e68).fillCircle(16,10,10);g.generateTexture("player",32,48);g.destroy();
+  game=new Phaser.Game({type:Phaser.AUTO,width:1280,height:760,parent:mount.current,backgroundColor:"#142019",scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},physics:{default:"arcade",arcade:{debug:false}},scene:[Town,Shop],render:{antialias:true}});
+  return()=>game.destroy(true);
  },[]);
- return <div className={styles.wrap}><div ref={mount} className={styles.canvas}/><div className={styles.mobileHint}>Use the on-screen game controls on desktop/mobile. Tap the shop to enter.</div></div>
+ return <div className={styles.wrap}><div ref={mount} className={styles.canvas}/><div className={styles.mobileHint}>Tap the ground to move. Tap the café to enter. Use the in-game controls to run your business.</div></div>;
 }
