@@ -1,20 +1,7 @@
 {
   "name": "tycoon-startup",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start"
-  },
-  "dependencies": {
-    "@types/node": "^22.0.0",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
-    "next": "^16.0.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "lucide-react": "^0.468.0",
-    "typescript": "^5.0.0"
-  }
+  "scripts": {"dev":"next dev","build":"next build","start":"next start"},
+  "dependencies": {"@types/node":"^22.0.0","@types/react":"^19.0.0","@types/react-dom":"^19.0.0","next":"^16.0.0","react":"^19.0.0","react-dom":"^19.0.0","lucide-react":"^0.468.0","phaser":"^3.90.0","typescript":"^5.0.0"}
 }
