@@ -1,1 +1,0 @@
-Gameplay systems are being built here. Mobile-first controls, low-poly rendering, business simulation, NPC customers, and progression are the target architecture.
