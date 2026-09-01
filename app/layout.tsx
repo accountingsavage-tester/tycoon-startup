@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'VHX Chess',
-  description: 'Play chess against Stockfish 18 in your browser.',
+  title: 'VHX Chess | Stockfish 18',
+  description: 'Play chess against Stockfish 18 directly in your browser.',
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
